@@ -1,14 +1,110 @@
 /**
  * WhatsApp Service
- * Sends WhatsApp messages AUTOMATICALLY using CallMeBot API
- * No user interaction needed — messages are sent via HTTP request.
- *
- * CallMeBot is a free service. Users must activate it once by sending
- * "I allow callmebot to send me messages" to +34 644 59 71 47 on WhatsApp,
- * then they receive an API key that enables automatic messaging.
- *
- * API: https://api.callmebot.com/whatsapp.php?phone=NUMBER&text=MSG&apikey=KEY
+ * Opens WhatsApp in your own self-chat with a pre-filled reminder message.
+ * The message is sent from YOUR number to YOURSELF — no third-party service needed.
+ * WhatsApp opens automatically; you tap Send once.
  */
+
+import { Linking, Alert } from 'react-native';
+import { format } from 'date-fns';
+
+/**
+ * Build a formatted event reminder message
+ */
+const buildEventMessage = (event) => {
+  const eventDate = new Date(event.dateTime);
+  const formattedDate = format(eventDate, 'EEEE, MMMM d, yyyy');
+  const formattedTime = format(eventDate, 'h:mm a');
+
+  return `🔔 *RememberMe - Event Reminder*
+
+📌 *${event.title}*
+📅 Date: ${formattedDate}
+⏰ Time: ${formattedTime}
+${event.description ? `📝 Details: ${event.description}` : ''}
+${event.category ? `🏷️ Category: ${event.category}` : ''}
+
+_Don't forget! This is your scheduled reminder._`;
+};
+
+/**
+ * Open WhatsApp self-chat with a pre-filled event reminder.
+ * Uses wa.me/[your_number] — message comes from YOUR number to YOURSELF.
+ * @param {string} fullNumber - Full number with country code e.g. +919876543210
+ * @param {object} event - Event object
+ */
+export const sendWhatsAppReminder = async (fullNumber, event) => {
+  if (!fullNumber) {
+    Alert.alert('Setup Required', 'Please set your WhatsApp number in Settings.');
+    return false;
+  }
+
+  const message = buildEventMessage(event);
+  return openWhatsAppSelfChat(fullNumber, message);
+};
+
+/**
+ * Open WhatsApp self-chat with any custom message
+ * @param {string} fullNumber - Full number with country code
+ * @param {string} message - Text to pre-fill
+ */
+export const openWhatsAppSelfChat = async (fullNumber, message) => {
+  const cleanNumber = fullNumber.replace(/[^0-9]/g, '');
+  const encodedMessage = encodeURIComponent(message);
+
+  // wa.me with your own number opens your self-chat ("Message yourself")
+  const url = `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
+  const deepLink = `whatsapp://send?phone=${cleanNumber}&text=${encodedMessage}`;
+
+  try {
+    const canUseDeepLink = await Linking.canOpenURL(deepLink);
+    await Linking.openURL(canUseDeepLink ? deepLink : url);
+    return true;
+  } catch (error) {
+    console.error('Error opening WhatsApp:', error);
+    Alert.alert('WhatsApp Error', 'Could not open WhatsApp. Make sure it is installed.');
+    return false;
+  }
+};
+
+/**
+ * Send a test message to verify the number is correct
+ */
+export const sendTestWhatsAppMessage = async (fullNumber) => {
+  return openWhatsAppSelfChat(
+    fullNumber,
+    '✅ *RememberMe Test*\n\nYour WhatsApp reminders are set up! When an event is due, WhatsApp will open here with a pre-filled reminder. Just tap Send. 🎉'
+  );
+};
+
+/**
+ * Send today\'s event summary to yourself
+ */
+export const sendDailySummary = async (fullNumber, events) => {
+  if (!fullNumber || !events.length) return false;
+
+  const today = format(new Date(), 'EEEE, MMMM d, yyyy');
+  const eventList = events
+    .map((e, i) => {
+      const time = format(new Date(e.dateTime), 'h:mm a');
+      return `${i + 1}. ${e.done ? '✅' : '⬜'} *${e.title}* at ${time}`;
+    })
+    .join('\n');
+
+  const message = `📋 *RememberMe - Daily Summary*
+📅 ${today}
+
+${eventList}
+
+_You have ${events.length} event${events.length > 1 ? 's' : ''} today!_`;
+
+  return openWhatsAppSelfChat(fullNumber, message);
+};
+
+// Legacy export aliases (no-op apiKey param for backwards compat)
+export const sendAutoWhatsAppMessage = async (fullNumber, _apiKey, message) =>
+  openWhatsAppSelfChat(fullNumber, message);
+export const sendWhatsAppDeepLink = sendWhatsAppReminder;
 
 import { Linking, Alert } from 'react-native';
 import { format } from 'date-fns';

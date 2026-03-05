@@ -1,6 +1,7 @@
 /**
  * SetupScreen - First-launch onboarding
- * Collects WhatsApp number + CallMeBot API key for automatic messaging
+ * Just collects the user's WhatsApp number.
+ * Reminders open WhatsApp in your own self-chat — from YOUR number to YOURSELF.
  */
 
 import React, { useState } from 'react';
@@ -12,14 +13,11 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  Linking,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 
 import { getSettings, saveSettings } from '../services/storage';
-import { sendAutoWhatsAppMessage } from '../services/whatsapp';
 import { COLORS, SHADOWS } from '../theme/colors';
 
 const COUNTRY_CODES = [
@@ -46,103 +44,45 @@ const COUNTRY_CODES = [
 ];
 
 const SetupScreen = ({ onSetupComplete }) => {
-  const [step, setStep] = useState(1); // 1 = welcome, 2 = phone, 3 = api key
+  const [step, setStep] = useState(1); // 1 = welcome, 2 = phone
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [showCountryCodes, setShowCountryCodes] = useState(false);
-  const [testing, setTesting] = useState(false);
-
-  // ─── Step handlers ──────────────────────────────────────
-
-  const handleGoToPhone = () => setStep(2);
-
-  const handleGoToApiKey = () => {
-    if (!phoneNumber || phoneNumber.length < 7) {
-      Alert.alert('Invalid Number', 'Please enter a valid WhatsApp phone number.');
-      return;
-    }
-    setStep(3);
-  };
-
-  const handleOpenCallMeBot = () => {
-    const fullNumber = (countryCode + phoneNumber).replace(/[^0-9+]/g, '');
-    const message = encodeURIComponent('I allow callmebot to send me messages');
-    const url = `https://wa.me/34644663262?text=${message}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert(
-        'Cannot Open WhatsApp',
-        'Please manually send the message "I allow callmebot to send me messages" to +34 644 66 32 62 on WhatsApp.'
-      );
-    });
-  };
-
-  const handleTestAndFinish = async () => {
-    if (!apiKey || apiKey.length < 3) {
-      Alert.alert('API Key Required', 'Please enter the API key you received from CallMeBot.');
-      return;
-    }
-
-    setTesting(true);
-    const fullNumber = countryCode + phoneNumber;
-
-    try {
-      const result = await sendAutoWhatsAppMessage(
-        fullNumber,
-        apiKey,
-        '✅ *RememberMe Setup Complete!*\n\nYour WhatsApp auto-messaging is now configured. You will receive automatic reminders for your scheduled events.'
-      );
-
-      if (result.success) {
-        // Save settings
-        const currentSettings = await getSettings();
-        const updatedSettings = {
-          ...currentSettings,
-          whatsappNumber: phoneNumber,
-          countryCode: countryCode,
-          callmebotApiKey: apiKey,
-          isSetupComplete: true,
-        };
-        await saveSettings(updatedSettings);
-
-        Alert.alert(
-          '🎉 Setup Complete!',
-          'Check your WhatsApp — you should have received a test message. Your automatic reminders are now active!',
-          [{ text: 'Get Started!', onPress: () => onSetupComplete() }]
-        );
-      } else {
-        Alert.alert(
-          'Message Failed',
-          `Could not send test message: ${result.error}\n\nPlease double-check your API key and make sure you completed the CallMeBot activation step.`,
-          [{ text: 'Try Again' }]
-        );
-      }
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        'Something went wrong. Please check your internet connection and try again.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setTesting(false);
-    }
-  };
 
   const handleSkip = async () => {
     Alert.alert(
       'Skip Setup?',
-      'You can still use the alarm and todo features, but WhatsApp auto-messaging won\'t work until you complete the setup in Settings.',
+      "You can still use alarms and todos. To set up WhatsApp reminders later, go to Settings.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Skip',
           onPress: async () => {
-            const currentSettings = await getSettings();
-            await saveSettings({ ...currentSettings, isSetupComplete: true });
+            const s = await getSettings();
+            await saveSettings({ ...s, isSetupComplete: true });
             onSetupComplete();
           },
         },
       ]
+    );
+  };
+
+  const handleFinish = async () => {
+    if (!phoneNumber || phoneNumber.length < 7) {
+      Alert.alert('Invalid Number', 'Please enter a valid WhatsApp phone number.');
+      return;
+    }
+    const s = await getSettings();
+    await saveSettings({
+      ...s,
+      whatsappNumber: phoneNumber,
+      countryCode,
+      isSetupComplete: true,
+    });
+    Alert.alert(
+      '🎉 All Set!',
+      `WhatsApp reminders will send to ${countryCode}${phoneNumber}. When a reminder fires, WhatsApp opens in your self-chat — just tap Send!`,
+      [{ text: "Let's Go!", onPress: () => onSetupComplete() }]
     );
   };
 
@@ -153,7 +93,7 @@ const SetupScreen = ({ onSetupComplete }) => {
       <Text style={styles.emoji}>🔔</Text>
       <Text style={styles.title}>Welcome to RememberMe</Text>
       <Text style={styles.subtitle}>
-        Your personal event manager with alarm clock and automatic WhatsApp reminders
+        Your personal event manager with alarm clock and WhatsApp reminders to yourself
       </Text>
 
       <View style={styles.featureList}>
@@ -167,8 +107,8 @@ const SetupScreen = ({ onSetupComplete }) => {
         <View style={styles.featureItem}>
           <Text style={styles.featureIcon}>📱</Text>
           <View style={styles.featureTextContainer}>
-            <Text style={styles.featureTitle}>Auto WhatsApp Messages</Text>
-            <Text style={styles.featureDesc}>Get automatic WhatsApp reminders — no tapping needed!</Text>
+            <Text style={styles.featureTitle}>WhatsApp Self-Reminders</Text>
+            <Text style={styles.featureDesc}>WhatsApp opens with your reminder pre-filled — just tap Send from your own number.</Text>
           </View>
         </View>
         <View style={styles.featureItem}>
@@ -180,8 +120,8 @@ const SetupScreen = ({ onSetupComplete }) => {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.primaryButton} onPress={handleGoToPhone}>
-        <Text style={styles.primaryButtonText}>Let's Set Up WhatsApp →</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={() => setStep(2)}>
+        <Text style={styles.primaryButtonText}>Set Up WhatsApp Number →</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
@@ -192,12 +132,24 @@ const SetupScreen = ({ onSetupComplete }) => {
 
   const renderPhoneStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepBadge}>Step 1 of 2</Text>
+      <Text style={styles.stepBadge}>Step 2 of 2</Text>
       <Text style={styles.emoji}>📱</Text>
       <Text style={styles.title}>Your WhatsApp Number</Text>
       <Text style={styles.subtitle}>
-        Enter the WhatsApp number where you want to receive automatic reminders
+        Enter your own WhatsApp number. When a reminder fires, WhatsApp will open
+        in your self-chat with the message ready — just tap Send.
       </Text>
+
+      {/* How it works info box */}
+      <View style={styles.infoBox}>
+        <Text style={styles.infoBoxTitle}>💡 How it works</Text>
+        <Text style={styles.infoBoxText}>
+          When your scheduled reminder time arrives, WhatsApp opens automatically
+          in <Text style={styles.bold}>your own chat (Saved Messages)</Text> with
+          the event details pre-filled. You tap Send once — and the message is from
+          YOUR number to YOUR number.
+        </Text>
+      </View>
 
       {/* Country code selector */}
       <TouchableOpacity
@@ -249,98 +201,16 @@ const SetupScreen = ({ onSetupComplete }) => {
         />
       </View>
 
-      <TouchableOpacity style={styles.primaryButton} onPress={handleGoToApiKey}>
-        <Text style={styles.primaryButtonText}>Next →</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={handleFinish}>
+        <Text style={styles.primaryButtonText}>✓ Save &amp; Get Started</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
         <Text style={styles.backButtonText}>← Back</Text>
       </TouchableOpacity>
-    </View>
-  );
-
-  const renderApiKeyStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepBadge}>Step 2 of 2</Text>
-      <Text style={styles.emoji}>🔑</Text>
-      <Text style={styles.title}>Activate Auto-Messaging</Text>
-      <Text style={styles.subtitle}>
-        We use the free CallMeBot service to send WhatsApp messages automatically.
-        Follow these simple steps:
-      </Text>
-
-      {/* Instructions */}
-      <View style={styles.instructionCard}>
-        <View style={styles.instructionStep}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>1</Text>
-          </View>
-          <Text style={styles.instructionText}>
-            Tap the green button below — it will open WhatsApp with{' '}
-            <Text style={styles.bold}>CallMeBot's bot number (+34 644 66 32 62)</Text>.{' '}
-            <Text style={styles.italic}>This is a bot service, not your own number.</Text>
-          </Text>
-        </View>
-
-        <View style={styles.instructionStep}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>2</Text>
-          </View>
-          <Text style={styles.instructionText}>
-            Send the pre-filled message{' '}
-            <Text style={styles.bold}>"I allow callmebot to send me messages"</Text>{' '}
-            to that bot. CallMeBot will then message <Text style={styles.bold}>your</Text> number (+{(countryCode + phoneNumber).replace(/[^0-9]/g, '')}) with a key.
-          </Text>
-        </View>
-
-        <View style={styles.instructionStep}>
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>3</Text>
-          </View>
-          <Text style={styles.instructionText}>
-            Check your WhatsApp for a reply from the bot. Copy the{' '}
-            <Text style={styles.bold}>API key</Text> from that message and enter it below.
-          </Text>
-        </View>
-      </View>
-
-      <TouchableOpacity style={styles.whatsappButton} onPress={handleOpenCallMeBot}>
-        <Text style={styles.whatsappButtonText}>📲 Open WhatsApp with CallMeBot</Text>
-      </TouchableOpacity>
-
-      {/* API key input */}
-      <Text style={styles.inputLabel}>Enter your API Key:</Text>
-      <TextInput
-        style={styles.apiKeyInput}
-        placeholder="e.g. 1234567"
-        placeholderTextColor={COLORS.textMuted}
-        value={apiKey}
-        onChangeText={setApiKey}
-        keyboardType="number-pad"
-        maxLength={20}
-      />
-
-      <TouchableOpacity
-        style={[styles.primaryButton, testing && styles.buttonDisabled]}
-        onPress={handleTestAndFinish}
-        disabled={testing}
-      >
-        {testing ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color="#FFF" size="small" />
-            <Text style={styles.primaryButtonText}> Sending test message...</Text>
-          </View>
-        ) : (
-          <Text style={styles.primaryButtonText}>✓ Test & Finish Setup</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
-        <Text style={styles.backButtonText}>← Back</Text>
-      </TouchableOpacity>
 
       <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={styles.skipButtonText}>Skip — I'll do this later</Text>
+        <Text style={styles.skipButtonText}>Skip — I'll set this up later</Text>
       </TouchableOpacity>
     </View>
   );
@@ -359,7 +229,7 @@ const SetupScreen = ({ onSetupComplete }) => {
       >
         {/* Progress dots */}
         <View style={styles.progressDots}>
-          {[1, 2, 3].map((s) => (
+          {[1, 2].map((s) => (
             <View
               key={s}
               style={[styles.dot, step >= s && styles.dotActive]}
@@ -369,7 +239,6 @@ const SetupScreen = ({ onSetupComplete }) => {
 
         {step === 1 && renderWelcome()}
         {step === 2 && renderPhoneStep()}
-        {step === 3 && renderApiKeyStep()}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -612,70 +481,53 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // ─── API Key ───────────────────
-  instructionCard: {
+  // ─── Info Box ──────────────────
+  infoBox: {
     width: '100%',
-    backgroundColor: COLORS.bgCard,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
-    gap: 16,
-  },
-  instructionStep: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  instructionNumber: {
-    width: 28,
-    height: 28,
+    backgroundColor: COLORS.primary + '18',
     borderRadius: 14,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 2,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
+    marginBottom: 20,
   },
-  instructionNumberText: {
+  infoBoxTitle: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#FFF',
+    fontWeight: '700',
+    color: COLORS.primaryLight,
+    marginBottom: 6,
   },
-  instructionText: {
-    flex: 1,
-    fontSize: 14,
+  infoBoxText: {
+    fontSize: 13,
     color: COLORS.textSecondary,
-    lineHeight: 20,
+    lineHeight: 19,
   },
   bold: {
     fontWeight: '700',
     color: COLORS.textPrimary,
   },
-  italic: {
-    fontStyle: 'italic',
-    color: COLORS.primary,
+
+  // ─── Unused CalllMeBot styles removed ───
+  buttonDisabled: {
+    opacity: 0.6,
   },
-  inputLabel: {
-    alignSelf: 'flex-start',
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: 8,
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  apiKeyInput: {
+  whatsappButton: {
     width: '100%',
-    backgroundColor: COLORS.bgCard,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 20,
-    color: COLORS.textPrimary,
-    fontWeight: '700',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: '#25D366',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
     marginBottom: 24,
-    textAlign: 'center',
-    letterSpacing: 3,
+    ...SHADOWS.medium,
+  },
+  whatsappButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
   },
 });
 

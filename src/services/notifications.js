@@ -16,18 +16,18 @@ Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const data = notification.request.content.data;
 
-    // AUTO-SEND WhatsApp when a WhatsApp-trigger notification fires
+    // When a WhatsApp-trigger notification fires, open WhatsApp self-chat automatically
     if (data?.autoSendWhatsApp && data?.eventId) {
       try {
         const [settings, events] = await Promise.all([getSettings(), getEvents()]);
         const event = events.find((e) => e.id === data.eventId);
-        if (event && settings.whatsappNumber && settings.callmebotApiKey) {
+        if (event && settings.whatsappNumber) {
           const fullNumber = settings.countryCode + settings.whatsappNumber;
-          sendWhatsAppReminder(fullNumber, settings.callmebotApiKey, event);
-          console.log('✅ Auto-sent WhatsApp for:', event.title);
+          sendWhatsAppReminder(fullNumber, event);
+          console.log('📱 Opened WhatsApp self-chat for:', event.title);
         }
       } catch (err) {
-        console.error('Auto WhatsApp send error:', err);
+        console.error('WhatsApp open error:', err);
       }
     }
 

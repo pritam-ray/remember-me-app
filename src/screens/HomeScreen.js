@@ -35,7 +35,7 @@ import {
   requestNotificationPermissions,
   scheduleAlarmNotification,
 } from '../services/notifications';
-import { sendWhatsAppReminder, sendWhatsAppDeepLink } from '../services/whatsapp';
+import { sendWhatsAppReminder } from '../services/whatsapp';
 import { COLORS, SHADOWS } from '../theme/colors';
 
 const HomeScreen = () => {
@@ -96,9 +96,9 @@ const HomeScreen = () => {
         // WhatsApp is now auto-sent via notification handler, but also handle tap
         if (data?.sendWhatsApp && data?.eventId) {
           const event = events.find((e) => e.id === data.eventId);
-          if (event && settings.whatsappNumber && settings.callmebotApiKey) {
+          if (event && settings.whatsappNumber) {
             const fullNumber = settings.countryCode + settings.whatsappNumber;
-            sendWhatsAppReminder(fullNumber, settings.callmebotApiKey, event);
+            sendWhatsAppReminder(fullNumber, event);
           }
         }
         if (data?.isAlarm) {
@@ -226,19 +226,7 @@ const HomeScreen = () => {
       return;
     }
     const fullNumber = settings.countryCode + settings.whatsappNumber;
-    if (settings.callmebotApiKey) {
-      // Auto-send via API
-      const result = await sendWhatsAppReminder(fullNumber, settings.callmebotApiKey, event);
-      if (result.success) {
-        Alert.alert('✅ Sent!', 'WhatsApp message sent automatically.');
-      } else {
-        Alert.alert('Failed', `Could not send: ${result.error}\nFalling back to WhatsApp deep link.`);
-        await sendWhatsAppDeepLink(fullNumber, event);
-      }
-    } else {
-      // Fallback to deep link
-      await sendWhatsAppDeepLink(fullNumber, event);
-    }
+    await sendWhatsAppReminder(fullNumber, event);
   };
 
   const handleDismissAlarm = () => {

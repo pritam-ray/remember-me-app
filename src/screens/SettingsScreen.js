@@ -257,7 +257,7 @@ const SettingsScreen = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📱 WhatsApp Setup</Text>
         <Text style={styles.sectionDesc}>
-          Enter your WhatsApp number and CallMeBot API key to receive automatic event reminders.
+          Enter your WhatsApp number. When a reminder fires, WhatsApp will open in your self-chat with the message pre-filled — just tap Send.
         </Text>
 
         {/* Country Code */}
@@ -307,21 +307,6 @@ const SettingsScreen = () => {
           onChangeText={(text) => updateSetting('whatsappNumber', text.replace(/[^0-9]/g, ''))}
           keyboardType="phone-pad"
           maxLength={15}
-        />
-
-        {/* CallMeBot API Key */}
-        <Text style={styles.label}>CallMeBot API Key</Text>
-        <Text style={styles.fieldDesc}>
-          Required for automatic WhatsApp sending. Send "I allow callmebot to send me messages" to +34 644 59 71 47 on WhatsApp to get your key.
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g., 1234567"
-          placeholderTextColor={COLORS.textMuted}
-          value={settings.callmebotApiKey || ''}
-          onChangeText={(text) => updateSetting('callmebotApiKey', text)}
-          keyboardType="number-pad"
-          maxLength={20}
         />
 
         {/* Test button */}
