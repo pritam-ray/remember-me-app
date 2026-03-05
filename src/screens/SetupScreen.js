@@ -15,6 +15,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 
 import { getSettings, saveSettings } from '../services/storage';
@@ -44,10 +45,12 @@ const COUNTRY_CODES = [
 ];
 
 const SetupScreen = ({ onSetupComplete }) => {
-  const [step, setStep] = useState(1); // 1 = welcome, 2 = phone
+  const [step, setStep] = useState(1); // 1 = welcome, 2 = phone, 3 = green api
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [showCountryCodes, setShowCountryCodes] = useState(false);
+  const [greenApiInstanceId, setGreenApiInstanceId] = useState('');
+  const [greenApiToken, setGreenApiToken] = useState('');
 
   const handleSkip = async () => {
     Alert.alert(
@@ -77,13 +80,34 @@ const SetupScreen = ({ onSetupComplete }) => {
       ...s,
       whatsappNumber: phoneNumber,
       countryCode,
+      greenApiInstanceId: greenApiInstanceId.trim(),
+      greenApiToken: greenApiToken.trim(),
       isSetupComplete: true,
     });
+    const isAutoConfigured = greenApiInstanceId.trim() && greenApiToken.trim();
     Alert.alert(
       '🎉 All Set!',
-      `WhatsApp reminders will send to ${countryCode}${phoneNumber}. When a reminder fires, WhatsApp opens in your self-chat — just tap Send!`,
+      isAutoConfigured
+        ? `Green API configured! Reminders will be sent automatically to ${countryCode}${phoneNumber}. No tapping needed!`
+        : `WhatsApp number saved (${countryCode}${phoneNumber}). You can add Green API credentials later in Settings for fully automatic sending.`,
       [{ text: "Let's Go!", onPress: () => onSetupComplete() }]
     );
+  };
+
+  const handleSkipToFinish = async () => {
+    // Save phone number and mark setup complete (skip Green API for now)
+    if (!phoneNumber || phoneNumber.length < 7) {
+      handleSkip();
+      return;
+    }
+    const s = await getSettings();
+    await saveSettings({
+      ...s,
+      whatsappNumber: phoneNumber,
+      countryCode,
+      isSetupComplete: true,
+    });
+    onSetupComplete();
   };
 
   // ─── Render Steps ───────────────────────────────────────
@@ -107,8 +131,8 @@ const SetupScreen = ({ onSetupComplete }) => {
         <View style={styles.featureItem}>
           <Text style={styles.featureIcon}>📱</Text>
           <View style={styles.featureTextContainer}>
-            <Text style={styles.featureTitle}>WhatsApp Self-Reminders</Text>
-            <Text style={styles.featureDesc}>WhatsApp opens with your reminder pre-filled — just tap Send from your own number.</Text>
+            <Text style={styles.featureTitle}>Automatic WhatsApp Messages</Text>
+            <Text style={styles.featureDesc}>Reminders are sent from your own WhatsApp number — fully automatic, no tapping needed.</Text>
           </View>
         </View>
         <View style={styles.featureItem}>
@@ -136,20 +160,8 @@ const SetupScreen = ({ onSetupComplete }) => {
       <Text style={styles.emoji}>📱</Text>
       <Text style={styles.title}>Your WhatsApp Number</Text>
       <Text style={styles.subtitle}>
-        Enter your own WhatsApp number. When a reminder fires, WhatsApp will open
-        in your self-chat with the message ready — just tap Send.
+        Enter your own WhatsApp number. Reminders will be sent to this number.
       </Text>
-
-      {/* How it works info box */}
-      <View style={styles.infoBox}>
-        <Text style={styles.infoBoxTitle}>💡 How it works</Text>
-        <Text style={styles.infoBoxText}>
-          When your scheduled reminder time arrives, WhatsApp opens automatically
-          in <Text style={styles.bold}>your own chat (Saved Messages)</Text> with
-          the event details pre-filled. You tap Send once — and the message is from
-          YOUR number to YOUR number.
-        </Text>
-      </View>
 
       {/* Country code selector */}
       <TouchableOpacity
@@ -201,16 +213,90 @@ const SetupScreen = ({ onSetupComplete }) => {
         />
       </View>
 
-      <TouchableOpacity style={styles.primaryButton} onPress={handleFinish}>
-        <Text style={styles.primaryButtonText}>✓ Save &amp; Get Started</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={() => {
+        if (!phoneNumber || phoneNumber.length < 7) {
+          Alert.alert('Invalid Number', 'Please enter a valid WhatsApp phone number.');
+          return;
+        }
+        setStep(3);
+      }}>
+        <Text style={styles.primaryButtonText}>Next →</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
         <Text style={styles.backButtonText}>← Back</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+      <TouchableOpacity style={styles.skipButton} onPress={handleSkipToFinish}>
         <Text style={styles.skipButtonText}>Skip — I'll set this up later</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderGreenApiStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepBadge}>Step 3 of 3 — Optional</Text>
+      <Text style={styles.emoji}>🤖</Text>
+      <Text style={styles.title}>Enable Auto-Send</Text>
+      <Text style={styles.subtitle}>
+        Set up Green API so reminders are sent automatically — zero tapping needed.
+        Completely free (500 messages/month).
+      </Text>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.infoBoxTitle}>💡 How it works</Text>
+        <Text style={styles.infoBoxText}>
+          Green API links <Text style={styles.bold}>your own WhatsApp</Text> account via a QR code scan.
+          When a reminder fires, the app calls Green API which sends the message
+          straight to your WhatsApp — fully automatic, no tap needed.
+        </Text>
+      </View>
+
+      {/* Setup steps */}
+      <View style={styles.setupSteps}>
+        <Text style={styles.setupStep}><Text style={styles.bold}>1.</Text> Go to green-api.com → Register (free)</Text>
+        <Text style={styles.setupStep}><Text style={styles.bold}>2.</Text> Create an instance → Scan QR code with WhatsApp</Text>
+        <Text style={styles.setupStep}><Text style={styles.bold}>3.</Text> Copy your Instance ID &amp; API Token below</Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.greenApiOpenBtn}
+        onPress={() => Linking.openURL('https://green-api.com')}
+      >
+        <Text style={styles.greenApiOpenBtnText}>🌐 Open green-api.com (Free Sign Up)</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.inputLabel}>Instance ID</Text>
+      <TextInput
+        style={styles.apiInput}
+        placeholder="e.g. 1101234567"
+        placeholderTextColor={COLORS.textMuted}
+        value={greenApiInstanceId}
+        onChangeText={setGreenApiInstanceId}
+        autoCapitalize="none"
+        keyboardType="default"
+      />
+
+      <Text style={styles.inputLabel}>API Token</Text>
+      <TextInput
+        style={styles.apiInput}
+        placeholder="e.g. d75b3a66374942c5b3c650ef2b..."
+        placeholderTextColor={COLORS.textMuted}
+        value={greenApiToken}
+        onChangeText={setGreenApiToken}
+        autoCapitalize="none"
+      />
+
+      <TouchableOpacity style={styles.primaryButton} onPress={handleFinish}>
+        <Text style={styles.primaryButtonText}>✓ Finish Setup</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
+        <Text style={styles.backButtonText}>← Back</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.skipButton} onPress={handleSkipToFinish}>
+        <Text style={styles.skipButtonText}>Skip — Set this up later in Settings</Text>
       </TouchableOpacity>
     </View>
   );
@@ -229,7 +315,7 @@ const SetupScreen = ({ onSetupComplete }) => {
       >
         {/* Progress dots */}
         <View style={styles.progressDots}>
-          {[1, 2].map((s) => (
+          {[1, 2, 3].map((s) => (
             <View
               key={s}
               style={[styles.dot, step >= s && styles.dotActive]}
@@ -239,6 +325,7 @@ const SetupScreen = ({ onSetupComplete }) => {
 
         {step === 1 && renderWelcome()}
         {step === 2 && renderPhoneStep()}
+        {step === 3 && renderGreenApiStep()}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -507,28 +594,53 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
 
-  // ─── Unused CalllMeBot styles removed ───
-  buttonDisabled: {
-    opacity: 0.6,
+  // ─── Green API step styles ──────────────────
+  setupSteps: {
+    width: '100%',
+    gap: 8,
+    marginBottom: 16,
+    paddingLeft: 4,
   },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  setupStep: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 21,
   },
-  whatsappButton: {
+  greenApiOpenBtn: {
     width: '100%',
     backgroundColor: '#25D366',
     borderRadius: 14,
-    paddingVertical: 14,
+    paddingVertical: 13,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
     ...SHADOWS.medium,
   },
-  whatsappButtonText: {
-    fontSize: 16,
+  greenApiOpenBtnText: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFF',
   },
+  inputLabel: {
+    alignSelf: 'flex-start',
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  apiInput: {
+    width: '100%',
+    backgroundColor: COLORS.bgCard,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 12,
+  },
 });
+
 
 export default SetupScreen;

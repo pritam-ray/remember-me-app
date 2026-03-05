@@ -58,6 +58,8 @@ const SettingsScreen = () => {
     whatsappEnabled: true,
     notifyMinutesBefore: 5,
     alarmDurationSeconds: 60,
+    greenApiInstanceId: '',
+    greenApiToken: '',
   });
   const [showCountryCodes, setShowCountryCodes] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -179,16 +181,17 @@ const SettingsScreen = () => {
       Alert.alert('Missing Number', 'Please enter your WhatsApp number first.');
       return;
     }
-    if (!settings.callmebotApiKey) {
-      Alert.alert('API Key Missing', 'Please complete the WhatsApp setup first. Go through the onboarding or enter your CallMeBot API key.');
-      return;
-    }
     const fullNumber = settings.countryCode + settings.whatsappNumber;
-    const result = await sendTestWhatsAppMessage(fullNumber, settings.callmebotApiKey);
+    const result = await sendTestWhatsAppMessage(fullNumber);
     if (result.success) {
-      Alert.alert('✅ Success', 'Test message sent automatically to your WhatsApp!');
+      Alert.alert('✅ Success', 'Test message sent to your WhatsApp!');
     } else {
-      Alert.alert('❌ Failed', `Could not send: ${result.error}`);
+      // May have opened deep link (no success flag issue) — check result
+      if (result.success !== false) {
+        Alert.alert('✅ WhatsApp opened', 'Check WhatsApp and tap Send.');
+      } else {
+        Alert.alert('❌ Failed', `Could not send: ${result.error}`);
+      }
     }
   };
 
@@ -214,7 +217,7 @@ const SettingsScreen = () => {
     }
 
     const fullNumber = settings.countryCode + settings.whatsappNumber;
-    const result = await sendDailySummary(fullNumber, settings.callmebotApiKey, todayEvents);
+    const result = await sendDailySummary(fullNumber, todayEvents);
     if (result.success) {
       Alert.alert('✅ Sent', 'Daily summary sent to your WhatsApp!');
     } else {
@@ -257,7 +260,7 @@ const SettingsScreen = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📱 WhatsApp Setup</Text>
         <Text style={styles.sectionDesc}>
-          Enter your WhatsApp number. When a reminder fires, WhatsApp will open in your self-chat with the message pre-filled — just tap Send.
+          Enter your WhatsApp number below. For fully automatic sending (no tap needed), set up Green API in the section below.
         </Text>
 
         {/* Country Code */}
@@ -324,6 +327,69 @@ const SettingsScreen = () => {
             <Text style={styles.btnText}>📋 Today's Summary</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* ─── Green API Auto-Send ─────────────────────── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>🤖 Auto-Send Setup (Free)</Text>
+
+        {/* Status badge */}
+        <View style={[
+          styles.greenApiBadge,
+          settings.greenApiInstanceId && settings.greenApiToken
+            ? styles.greenApiBadgeActive
+            : styles.greenApiBadgeInactive,
+        ]}>
+          <Text style={styles.greenApiBadgeText}>
+            {settings.greenApiInstanceId && settings.greenApiToken
+              ? '✅ Configured — messages send automatically'
+              : '⚠️  Not configured — WhatsApp will open for manual send'}
+          </Text>
+        </View>
+
+        <Text style={styles.sectionDesc}>
+          Green API links your own WhatsApp by QR code. Once set up, reminders are sent
+          fully automatically — no tap required. Free plan: 500 messages/month.
+        </Text>
+
+        {/* Steps */}
+        <View style={styles.greenApiSteps}>
+          <Text style={styles.greenApiStep}>1️⃣  Visit <Text style={styles.link}>green-api.com</Text> → Register free</Text>
+          <Text style={styles.greenApiStep}>2️⃣  Create an instance → Scan QR with WhatsApp</Text>
+          <Text style={styles.greenApiStep}>3️⃣  Copy your <Text style={styles.boldText}>Instance ID</Text> and <Text style={styles.boldText}>API Token</Text> below</Text>
+        </View>
+
+        {/* Open green-api.com */}
+        <TouchableOpacity
+          style={styles.greenApiLinkBtn}
+          onPress={() => Linking.openURL('https://green-api.com')}
+        >
+          <Text style={styles.greenApiLinkBtnText}>🌐 Open green-api.com →</Text>
+        </TouchableOpacity>
+
+        {/* Instance ID */}
+        <Text style={styles.label}>Instance ID</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 1101234567"
+          placeholderTextColor={COLORS.textMuted}
+          value={settings.greenApiInstanceId || ''}
+          onChangeText={(t) => updateSetting('greenApiInstanceId', t.trim())}
+          keyboardType="default"
+          autoCapitalize="none"
+        />
+
+        {/* API Token */}
+        <Text style={styles.label}>API Token</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. d75b3a66374942c5b3c650ef2b..."
+          placeholderTextColor={COLORS.textMuted}
+          value={settings.greenApiToken || ''}
+          onChangeText={(t) => updateSetting('greenApiToken', t.trim())}
+          autoCapitalize="none"
+          secureTextEntry={false}
+        />
       </View>
 
       {/* ─── Alarm Settings ─────────────────────────── */}
@@ -580,6 +646,57 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+
+  // ─── Green API styles ───────────────────────────
+  greenApiBadge: {
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  greenApiBadgeActive: {
+    backgroundColor: '#25D36618',
+    borderColor: '#25D36650',
+  },
+  greenApiBadgeInactive: {
+    backgroundColor: COLORS.primary + '18',
+    borderColor: COLORS.primary + '40',
+  },
+  greenApiBadgeText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  greenApiSteps: {
+    gap: 6,
+    marginBottom: 14,
+  },
+  greenApiStep: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  boldText: {
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  link: {
+    color: COLORS.primaryLight,
+    fontWeight: '700',
+  },
+  greenApiLinkBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  greenApiLinkBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',

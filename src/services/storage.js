@@ -97,13 +97,14 @@ export const toggleEventDone = async (eventId) => {
 const DEFAULT_SETTINGS = {
   whatsappNumber: '',
   countryCode: '+91',
-  callmebotApiKey: '',     // API key for automatic WhatsApp sending via CallMeBot
-  isSetupComplete: false,  // true once user completes first-launch onboarding
+  callmebotApiKey: '',     // legacy — no longer used
+  greenApiInstanceId: '', // Green API instance ID for auto WhatsApp sending
+  greenApiToken: '',      // Green API API token
+  isSetupComplete: false,
   alarmEnabled: true,
   whatsappEnabled: true,
   notifyMinutesBefore: 5,
   alarmDurationSeconds: 60,
-  // Default alarm sound — null means use bundled fallback
   defaultAlarmSoundUri: null,
   defaultAlarmSoundName: 'Default (Built-in)',
 };
