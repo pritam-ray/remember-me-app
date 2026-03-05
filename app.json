@@ -48,6 +48,12 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bfd613c5-f152-4d13-8307-225178936b28"
+      }
+    },
+    "owner": "pritamray"
   }
 }
